@@ -46,6 +46,7 @@
 <script type="module">
   import { createLab } from './js/lab.js';
   import { VIEWS, formatAngles } from './js/views-data.js';
+  import { TARGETS } from './js/anatomy.js';
   const $ = (id) => document.getElementById(id);
   let right = 0, total = 0;
   const score = () => ($('score').textContent = `${right} / ${total}`);
@@ -60,7 +61,7 @@
     const j = () => Math.round((Math.random() - 0.5) * 8);
     labId.setSystem(current.sys); labId.setLabels(false); labId.setReadout(false);
     labId.setAngles(current.lao + j(), current.cran + j(), false);
-    const opts = pick(VIEWS.filter((v) => v !== current && v.sys === current.sys), 3).concat(current).sort(() => Math.random() - 0.5);
+    const opts = pick(VIEWS.filter((v) => v !== current && v.group === current.group), 3).concat(current).sort(() => Math.random() - 0.5);
     $('choices').innerHTML = '';
     $('fb-id').textContent = '';
     for (const v of opts) {
@@ -90,7 +91,7 @@
   function nextDial() {
     target = VIEWS[Math.floor(Math.random() * VIEWS.length)];
     $('dial-target').textContent = `Set up: ${target.name}`;
-    $('dial-sub').textContent = `${target.nickname} — ${target.sys === 'L' ? 'left' : 'right'} coronary. Get within ±10° on both axes.`;
+    $('dial-sub').textContent = `${target.nickname} — ${TARGETS[target.sys].name}. Get within ±10° on both axes.`;
     $('fb-dial').textContent = '';
     labDial.setSystem(target.sys); labDial.setAngles(0, 0, true);
   }

@@ -10,9 +10,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import {
-  VESSELS, VESSEL_BY_ID, vesselGeometry, ventricleGeometry, taperedTube,
-  AORTA_CURVE, PULM_CURVE, ATRIA_CENTER, CATHETERS, VESSEL_COLORS, } from './anatomy.js';
-import { VIEWS, formatAngles } from './views-data.js';
+  VESSELS, VESSEL_BY_ID, vesselGeometry, ventricleGeometry, taperedTube, linearRadius,
+  AORTA_CURVE, PULM_CURVE, SUBCLAVIAN_CURVE, ATRIA_CENTER, CATHETERS, VESSEL_COLORS, TARGETS,
+  lvGeometry, updateLV, lvWallPoint, LV_WALLS, LV_INFO, WALL_MOTION,
+  STERNAL_WIRES, LIMA_CLIPS, GRAFT_MARKERS,
+} from './anatomy.js';
+import { VIEWS, GROUPS, formatAngles } from './views-data.js';
 
 const ISO = new THREE.Vector3(0, 1.02, 0);
 const CM = 0.01;
@@ -24,7 +27,7 @@ const DEG = Math.PI / 180;
 // centre of the coronary tree's bounding box, placed at isocentre
 const HEART_CENTROID = (() => {
   const box = new THREE.Box3();
-  for (const v of VESSELS) for (const p of v.curve.getSpacedPoints(20)) box.expandByPoint(p);
+  for (const v of VESSELS) if (!v.graft && !v.sub) for (const p of v.curve.getSpacedPoints(20)) box.expandByPoint(p);
   return box.getCenter(new THREE.Vector3());
 })();
 
@@ -66,6 +69,35 @@ function placeLabel(el, world, camera, w, h, visible = true) {
 }
 
 // ---------- anatomy meshes ----------
+const LV_GEO = lvGeometry();
+const CATHETER_GEOS = Object.fromEntries(Object.entries(CATHETERS).map(([k, c]) => [k, new THREE.TubeGeometry(c, 220, 0.1, 8)]));
+const AORTA_GEO = taperedTube(AORTA_CURVE, linearRadius(1.5, 1.1), 120, 20);
+const SUBCLAVIAN_GEO = taperedTube(SUBCLAVIAN_CURVE, linearRadius(0.55, 0.45), 40, 12);
+
+// sternal wires, LIMA clips and SVG ostial rings, in one group
+function buildHardware(material) {
+  const g = new THREE.Group();
+  const wire = new THREE.TorusGeometry(1.0, 0.07, 6, 40);
+  const knot = new THREE.SphereGeometry(0.16, 8, 6);
+  for (const p of STERNAL_WIRES) {
+    // the sternum slopes, so each loop is tilted and shows as a thin oval in AP
+    const w = new THREE.Mesh(wire, material); w.position.copy(p); w.scale.set(1.5, 0.6, 1); w.rotation.x = 0.45; g.add(w);
+    const k = new THREE.Mesh(knot, material); k.position.copy(p).add(new THREE.Vector3(0, 0.62, 0)); g.add(k);
+  }
+  const clip = new THREE.BoxGeometry(0.12, 0.12, 0.55);
+  for (const { p, tangent } of LIMA_CLIPS) {
+    const c = new THREE.Mesh(clip, material);
+    c.position.copy(p);
+    c.lookAt(p.clone().add(new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize()));
+    g.add(c);
+  }
+  const ring = new THREE.TorusGeometry(0.5, 0.06, 6, 28);
+  for (const { p, tangent } of GRAFT_MARKERS) {
+    const r = new THREE.Mesh(ring, material); r.position.copy(p); r.lookAt(p.clone().add(tangent)); g.add(r);
+  }
+  return g;
+}
+
 function buildHeartColor(shell = 1) {
   const g = new THREE.Group();
   const vent = new THREE.Mesh(ventricleGeometry(), new THREE.MeshStandardMaterial({
@@ -79,14 +111,16 @@ function buildHeartColor(shell = 1) {
   atria.position.copy(ATRIA_CENTER);
   atria.scale.set(1.15, 0.8, 0.85);
   g.add(atria);
-  const aorta = new THREE.Mesh(taperedTube(AORTA_CURVE, 1.5, 1.1, 120, 20), new THREE.MeshStandardMaterial({
+  const aorta = new THREE.Mesh(AORTA_GEO, new THREE.MeshStandardMaterial({
     color: 0xd9534f, roughness: 0.5, transparent: true, opacity: 0.4 * shell, depthWrite: false,
   }));
   g.add(aorta);
-  const pa = new THREE.Mesh(taperedTube(PULM_CURVE, 1.3, 1.1, 40, 16), new THREE.MeshStandardMaterial({
+  const pa = new THREE.Mesh(taperedTube(PULM_CURVE, linearRadius(1.3, 1.1), 40, 16), new THREE.MeshStandardMaterial({
     color: 0x5b7bd5, roughness: 0.5, transparent: true, opacity: 0.4 * shell, depthWrite: false,
   }));
   g.add(pa);
+  const subclavian = new THREE.Mesh(SUBCLAVIAN_GEO, aorta.material);
+  g.add(subclavian);
   const vessels = {};
   for (const v of VESSELS) {
     const m = new THREE.Mesh(vesselGeometry(v), new THREE.MeshStandardMaterial({
@@ -97,15 +131,19 @@ function buildHeartColor(shell = 1) {
     g.add(m);
   }
   const catheters = {};
-  for (const k of ['L', 'R']) {
-    const m = new THREE.Mesh(new THREE.TubeGeometry(CATHETERS[k], 160, 0.1, 8), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.3 }));
-    catheters[k] = m;
-    g.add(m);
-  }
-  return { group: g, vessels, catheters };
+  const cathMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.3 });
+  for (const k in CATHETER_GEOS) { catheters[k] = new THREE.Mesh(CATHETER_GEOS[k], cathMat); g.add(catheters[k]); }
+  const lv = new THREE.Mesh(LV_GEO, new THREE.MeshStandardMaterial({
+    color: 0xff8787, emissive: 0x7a1f1f, roughness: 0.5, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  lv.renderOrder = 4;
+  g.add(lv);
+  const hardware = buildHardware(new THREE.MeshStandardMaterial({ color: 0xd0d6dd, metalness: 0.8, roughness: 0.3 }));
+  g.add(hardware);
+  return { group: g, vessels, catheters, lv, aorta, subclavian, hardware };
 }
 
-function buildXray(fade) {
+function buildXray(fade, lvFade, aortaFade) {
   const g = new THREE.Group();
   const heart = new THREE.Mesh(ventricleGeometry(), xrayMaterial(0.07));
   g.add(heart);
@@ -142,11 +180,16 @@ function buildXray(fade) {
     g.add(m);
   }
   const catheters = {};
-  for (const k of ['L', 'R']) {
-    const m = new THREE.Mesh(new THREE.TubeGeometry(CATHETERS[k], 160, 0.1, 8), xrayMaterial(0.75));
-    catheters[k] = m; g.add(m);
-  }
-  return { group: g, vessels, catheters };
+  const cathMat = xrayMaterial(0.75);
+  for (const k in CATHETER_GEOS) { catheters[k] = new THREE.Mesh(CATHETER_GEOS[k], cathMat); g.add(catheters[k]); }
+  // ventriculogram: contrast-filled LV cavity, and contrast ejected into the aorta
+  const lv = new THREE.Mesh(LV_GEO, xrayMaterial(0.6, lvFade));
+  g.add(lv);
+  const aorta = new THREE.Mesh(AORTA_GEO, xrayMaterial(0.42, aortaFade));
+  g.add(aorta);
+  const hardware = buildHardware(xrayMaterial(0.85));
+  g.add(hardware);
+  return { group: g, vessels, catheters, lv, aorta, hardware };
 }
 
 // ---------- room ----------
@@ -246,10 +289,12 @@ export function createLab(root, opts = {}) {
           <input type="range" class="sl-cran" min="-45" max="45" step="1"><output class="out-cran"></output></label>
       </div>
       <div class="lab-toggles">
-        <div class="seg" role="group" aria-label="Coronary"><button data-sys="L">Left</button><button data-sys="R">Right</button></div>
+        <label class="lab-select">Inject <select class="sel-target">${Object.entries(TARGETS).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('')}</select></label>
         <div class="seg" role="group" aria-label="Display"><button data-mode="xray">Angio</button><button data-mode="color">Anatomy</button></div>
         <button class="btn-inject">💉 Inject</button>
         <button class="btn-labels" aria-pressed="true">Labels</button>
+        <button class="btn-lesions" aria-pressed="false" title="Add coronary stenoses">Lesions</button>
+        <label class="lab-select lab-wall">Wall motion <select class="sel-wall">${Object.entries(WALL_MOTION).map(([k, w]) => `<option value="${k}">${w.name}</option>`).join('')}</select></label>
       </div>
       ${o.presets ? `<div class="lab-presets"></div>` : ''}
     </div>` : ''}`;
@@ -263,7 +308,8 @@ export function createLab(root, opts = {}) {
 
   const state = {
     lao: o.lao, cran: o.cran, tLao: o.lao, tCran: o.cran,
-    sys: o.sys, mode: 'xray', labels: o.labels, inject: null,
+    sys: o.sys, mode: 'xray', labels: o.labels, inject: null, lesions: false, wall: 'normal',
+    pan: new THREE.Vector3(), // table pan (m): isocentre offset relative to the native tree
     listeners: [],
   };
 
@@ -315,8 +361,8 @@ export function createLab(root, opts = {}) {
   fRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   fluoroCanvasBox.appendChild(fRenderer.domElement);
   const fScene = new THREE.Scene();
-  const fade = { value: 1 };
-  const xray = buildXray(fade);
+  const fade = { value: 1 }, lvFade = { value: 1 }, aortaFade = { value: 0.7 };
+  const xray = buildXray(fade, lvFade, aortaFade);
   xray.group.scale.setScalar(CM); xray.group.position.copy(heartPos);
   fScene.add(xray.group);
   const colorHeart = buildHeartColor(0.5);
@@ -329,10 +375,18 @@ export function createLab(root, opts = {}) {
 
   const vLabels = {};
   for (const v of VESSELS) {
-    if (['S2', 'CB'].includes(v.id)) continue;
+    if (['S2', 'S3', 'CB', 'SAN', 'RVB', 'PL2', 'OM3'].includes(v.id)) continue;
     vLabels[v.id] = labelEl(fluoroLabels, v.id === 'S1' ? 'Septals' : v.name, 'vessel');
     vLabels[v.id].style.setProperty('--c', VESSEL_COLORS[v.id]);
   }
+  const lesionLabels = [];
+  for (const v of VESSELS) for (const l of v.lesions || []) {
+    lesionLabels.push({ v, l, el: labelEl(fluoroLabels, `${Math.round(l.severity * 100)}%`, 'lesion') });
+  }
+  const wallLabels = Object.entries({ anterior: 'Anterior', inferior: 'Inferior', septal: 'Septum', lateral: 'Lateral' })
+    .map(([k, text]) => ({ dir: LV_WALLS[k], el: labelEl(fluoroLabels, text, 'wall') }));
+  const apexLabel = labelEl(fluoroLabels, 'Apex', 'wall');
+  const wiresLabel = labelEl(fluoroLabels, 'Sternal wires', 'landmark');
   const spineLabel = labelEl(fluoroLabels, 'Spine', 'landmark');
   const diaLabel = labelEl(fluoroLabels, 'Diaphragm', 'landmark');
 
@@ -382,32 +436,49 @@ export function createLab(root, opts = {}) {
   // --- injection / visibility ---
   function setReveal(frontCm) {
     for (const v of VESSELS) {
-      const g = vesselGeometry(v);
       const frac = THREE.MathUtils.clamp((frontCm - v.start) / v.length, 0, 1);
-      g.setDrawRange(0, Math.round(frac * g.userData.segments) * g.userData.indicesPerSegment);
+      for (const g of Object.values(v.geometries)) {
+        g.setDrawRange(0, Math.round(frac * g.userData.segments) * g.userData.indicesPerSegment);
+      }
     }
   }
+  const hearts = () => (room ? [colorHeart, room.heart] : [colorHeart]);
   function applySystem() {
+    const kind = TARGETS[state.sys].kind;
+    const cabg = kind === 'graft';
     for (const v of VESSELS) {
-      const show = v.sys === state.sys;
-      xray.vessels[v.id].visible = show;
-      // colour views always show the whole tree, dimming the other system
-      colorHeart.vessels[v.id].material.opacity = show ? 1 : 0.35;
-      colorHeart.vessels[v.id].material.transparent = !show;
-      if (room) room.heart.vessels[v.id].material.opacity = 1;
+      const injected = v.sys === state.sys;
+      const geo = vesselGeometry(v, state.lesions);
+      xray.vessels[v.id].visible = injected;
+      xray.vessels[v.id].geometry = geo;
+      // anatomy views show the whole tree, dimming what isn't injected; grafts
+      // only exist in the post-CABG patient, and their run-off segments only
+      // while that graft is injected (they overlap the native vessel)
+      const exists = v.graft ? cabg : v.sub ? injected : true;
+      for (const h of hearts()) {
+        const m = h.vessels[v.id];
+        m.visible = exists;
+        m.geometry = geo;
+        m.material.transparent = !injected;
+        m.material.opacity = injected ? 1 : 0.35;
+      }
     }
-    for (const k of ['L', 'R']) {
+    for (const k in CATHETERS) {
       xray.catheters[k].visible = k === state.sys;
-      colorHeart.catheters[k].visible = k === state.sys;
-      if (room) room.heart.catheters[k].visible = k === state.sys;
+      for (const h of hearts()) h.catheters[k].visible = k === state.sys;
     }
-    osdSys.textContent = state.sys === 'L' ? 'LCA' : 'RCA';
+    xray.lv.visible = xray.aorta.visible = kind === 'lv';
+    xray.hardware.visible = cabg;
+    for (const h of hearts()) { h.lv.visible = kind === 'lv'; h.hardware.visible = cabg; h.subclavian.visible = state.sys === 'LIMA'; }
+    osdSys.textContent = TARGETS[state.sys].osd;
+    root.classList.toggle('target-lv', kind === 'lv');
   }
 
   function inject() {
     state.inject = { t0: performance.now() };
   }
   function updateInjection(t) {
+    if (TARGETS[state.sys].kind === 'lv') return updateLVInjection(t);
     if (!state.inject) { fade.value = 1; setReveal(1e9); return; }
     const s = (t - state.inject.t0) / 1000;
     const fill = 1.4, hold = 1.6, wash = 1.2, back = 0.8;
@@ -418,6 +489,22 @@ export function createLab(root, opts = {}) {
     else if (s < fill + hold + wash + 0.5 + back) { fade.value = (s - fill - hold - wash - 0.5) / back; }
     else { state.inject = null; fade.value = 1; }
   }
+  // LV gram: the cavity opacifies first, then each systole ejects contrast into the aorta
+  function updateLVInjection(t) {
+    setReveal(1e9); fade.value = 1;
+    if (!state.inject) { lvFade.value = 1; aortaFade.value = 0.7; return; }
+    const s = (t - state.inject.t0) / 1000;
+    const sm = (a, b) => THREE.MathUtils.smoothstep(s, a, b);
+    const wash = 1 - sm(5, 6.2), back = sm(6.7, 7.5);
+    lvFade.value = Math.max(sm(0, 0.8) * wash, back);
+    aortaFade.value = Math.max(sm(0.6, 1.8) * wash, back * 0.7);
+    if (s > 7.5) state.inject = null;
+  }
+  // one heartbeat every 0.85 s: 0 = end-diastole, 1 = end-systole
+  function contraction(t) {
+    const p = ((t / 1000) % 0.85) / 0.85;
+    return p < 0.36 ? THREE.MathUtils.smoothstep(p, 0, 0.3) : 1 - THREE.MathUtils.smoothstep(p, 0.38, 0.62);
+  }
 
   // --- controls ---
   const ui = {};
@@ -427,18 +514,29 @@ export function createLab(root, opts = {}) {
     ui.lao.value = state.lao; ui.cran.value = state.cran;
     ui.lao.addEventListener('input', () => setAngles(+ui.lao.value, state.tCran, false));
     ui.cran.addEventListener('input', () => setAngles(state.tLao, +ui.cran.value, false));
-    root.querySelectorAll('[data-sys]').forEach((b) => b.addEventListener('click', () => setSystem(b.dataset.sys)));
+    ui.target = root.querySelector('.sel-target');
+    ui.target.addEventListener('change', () => setSystem(ui.target.value));
+    ui.wall = root.querySelector('.sel-wall');
+    ui.wall.addEventListener('change', () => { state.wall = ui.wall.value; });
+    ui.lesions = root.querySelector('.btn-lesions');
+    ui.lesions.addEventListener('click', () => setLesions(!state.lesions));
     root.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
     root.querySelector('.btn-inject').addEventListener('click', inject);
     const lb = root.querySelector('.btn-labels');
     lb.addEventListener('click', () => { state.labels = !state.labels; lb.setAttribute('aria-pressed', state.labels); });
     if (o.presets) {
       const pr = root.querySelector('.lab-presets');
-      for (const v of VIEWS) {
-        const b = document.createElement('button');
-        b.textContent = v.name; b.title = `${formatAngles(v.lao, v.cran)} — ${v.nickname}`;
-        b.addEventListener('click', () => { setSystem(v.sys); setAngles(v.lao, v.cran, true); });
-        pr.appendChild(b);
+      for (const [g, title] of Object.entries(GROUPS)) {
+        const row = document.createElement('div');
+        row.className = 'lab-preset-row';
+        row.innerHTML = `<span>${title}</span>`;
+        for (const v of VIEWS.filter((x) => x.group === g)) {
+          const b = document.createElement('button');
+          b.textContent = v.name; b.title = `${formatAngles(v.lao, v.cran)} — ${v.nickname}`;
+          b.addEventListener('click', () => { setSystem(v.sys); setAngles(v.lao, v.cran, true); });
+          row.appendChild(b);
+        }
+        pr.appendChild(row);
       }
     }
   }
@@ -450,7 +548,9 @@ export function createLab(root, opts = {}) {
     const a = Math.round(state.tLao), c = Math.round(state.tCran);
     ui.outLao.textContent = a === 0 ? 'AP' : a > 0 ? `LAO ${a}°` : `RAO ${-a}°`;
     ui.outCran.textContent = c === 0 ? '0°' : c > 0 ? `CRA ${c}°` : `CAU ${-c}°`;
-    root.querySelectorAll('[data-sys]').forEach((b) => b.classList.toggle('on', b.dataset.sys === state.sys));
+    ui.target.value = state.sys;
+    ui.wall.value = state.wall;
+    ui.lesions.setAttribute('aria-pressed', state.lesions);
     root.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === state.mode));
   }
 
@@ -461,7 +561,9 @@ export function createLab(root, opts = {}) {
     syncUI();
     state.listeners.forEach((f) => f({ lao: state.tLao, cran: state.tCran }));
   }
-  function setSystem(sys) { state.sys = sys; applySystem(); syncUI(); }
+  function setSystem(sys) { state.sys = TARGETS[sys] ? sys : 'L'; state.inject = null; applySystem(); syncUI(); }
+  function setLesions(on) { state.lesions = on; applySystem(); syncUI(); }
+  function setWallMotion(w) { state.wall = WALL_MOTION[w] ? w : 'normal'; syncUI(); }
   function setMode(mode) {
     state.mode = mode;
     xray.group.visible = mode === 'xray';
@@ -482,11 +584,17 @@ export function createLab(root, opts = {}) {
     if (Math.abs(state.tLao - state.lao) < 0.02) state.lao = state.tLao;
     if (Math.abs(state.tCran - state.cran) < 0.02) state.cran = state.tCran;
     updateInjection(t);
+    const c = TARGETS[state.sys].center;
+    const panTarget = c ? c.clone().sub(HEART_CENTROID).multiplyScalar(CM) : new THREE.Vector3();
+    state.pan.lerp(panTarget, 0.1);
+    const iso = ISO.clone().add(state.pan);
+    const lvMode = TARGETS[state.sys].kind === 'lv';
+    if (lvMode) updateLV(LV_GEO, contraction(t), state.wall);
 
     const { det, up } = armFrame(state.lao, state.cran);
-    const src = ISO.clone().addScaledVector(det, -SRC_D);
-    fCam.position.copy(src); fCam.up.copy(up); fCam.lookAt(ISO);
-    fLight.position.copy(ISO).addScaledVector(det, 2);
+    const src = iso.clone().addScaledVector(det, -SRC_D);
+    fCam.position.copy(src); fCam.up.copy(up); fCam.lookAt(iso);
+    fLight.position.copy(iso).addScaledVector(det, 2);
     osdAngles.textContent = formatAngles(state.lao, state.cran);
 
     fRenderer.setClearColor(state.mode === 'xray' ? 0xc4c4c4 : 0x0d131a);
@@ -494,16 +602,29 @@ export function createLab(root, opts = {}) {
     if (state.mode === 'xray') drawNoise(t);
 
     const fw = fluoroCanvasBox.clientWidth, fh = fluoroCanvasBox.clientHeight;
+    const toWorld = (p) => p.clone().multiplyScalar(CM).add(heartPos);
+    const settled = state.mode === 'color' || (fade.value > 0.5 && !state.inject);
     for (const id in vLabels) {
       const v = VESSEL_BY_ID[id];
-      const wp = v.curve.getPointAt(id.startsWith('S') ? 0.6 : 0.55).multiplyScalar(CM).add(heartPos);
-      const shown = state.labels && v.sys === state.sys && (state.mode === 'color' || (fade.value > 0.5 && !state.inject));
-      placeLabel(vLabels[id], wp, fCam, fw, fh, shown);
+      const wp = toWorld(v.curve.getPointAt(id.startsWith('S') ? 0.6 : 0.55));
+      placeLabel(vLabels[id], wp, fCam, fw, fh, state.labels && v.sys === state.sys && settled);
     }
-    placeLabel(spineLabel, new THREE.Vector3(0.3, -9.5, HEART_CENTROID.z - 4).multiplyScalar(CM).add(heartPos), fCam, fw, fh, state.labels && state.mode === 'xray');
+    for (const { v, l, el } of lesionLabels) {
+      // only named in Anatomy mode: in Angio the learner has to find them
+      placeLabel(el, toWorld(v.curve.getPointAt(l.at)), fCam, fw, fh, state.labels && state.lesions && v.sys === state.sys && state.mode === 'color');
+    }
+    // LV walls are only judged where they are seen in profile (edge-on to the beam)
+    for (const { dir, el } of wallLabels) {
+      placeLabel(el, toWorld(lvWallPoint(dir, 0.5)), fCam, fw, fh, state.labels && lvMode && Math.abs(dir.dot(det)) < 0.55);
+    }
+    placeLabel(apexLabel, toWorld(LV_INFO.apex.clone().addScaledVector(LV_INFO.axis, 0.9)), fCam, fw, fh, state.labels && lvMode);
+    placeLabel(wiresLabel, toWorld(STERNAL_WIRES[3].clone().add(new THREE.Vector3(2.6, 0, 0))), fCam, fw, fh,
+      state.labels && state.mode === 'xray' && TARGETS[state.sys].kind === 'graft');
+    placeLabel(spineLabel, new THREE.Vector3(0.3, -9.5, HEART_CENTROID.z + state.pan.z / CM - 4).multiplyScalar(CM).add(heartPos), fCam, fw, fh, state.labels && state.mode === 'xray');
     placeLabel(diaLabel, new THREE.Vector3(1.5, -1.5, -5).multiplyScalar(CM).add(heartPos), fCam, fw, fh, state.labels && state.mode === 'xray' && state.cran > 8);
 
     if (room) {
+      room.rig.propeller.position.copy(iso);
       room.rig.propeller.rotation.z = state.lao * DEG;
       room.rig.orbital.rotation.x = state.cran * DEG;
       if (room.camTween) {
@@ -516,7 +637,7 @@ export function createLab(root, opts = {}) {
       room.renderer.render(room.scene, room.camera);
       const rc = room.box.querySelector('.lab-canvas');
       const rw = rc.clientWidth, rh = rc.clientHeight, show = state.labels;
-      placeLabel(room.labels.det, ISO.clone().addScaledVector(det, DET_D + 0.16), room.camera, rw, rh, show);
+      placeLabel(room.labels.det, iso.clone().addScaledVector(det, DET_D + 0.16), room.camera, rw, rh, show);
       placeLabel(room.labels.tube, src.clone().addScaledVector(det, -0.14), room.camera, rw, rh, show);
       placeLabel(room.labels.head, new THREE.Vector3(0, 1.17, 0.5), room.camera, rw, rh, show);
       placeLabel(room.labels.left, new THREE.Vector3(-0.36, 0.95, -0.35), room.camera, rw, rh, show);
@@ -532,7 +653,8 @@ export function createLab(root, opts = {}) {
   applySystem(); setMode('xray'); syncUI(); resize(); loop();
 
   return {
-    setAngles, setSystem, setMode, inject, setRoomCam,
+    setAngles, setSystem, setTarget: setSystem, setMode, inject, setRoomCam, setLesions, setWallMotion,
+    getTarget: () => state.sys,
     getAngles: () => ({ lao: state.tLao, cran: state.tCran }),
     getMode: () => state.mode,
     getLabels: () => state.labels,

@@ -1,5 +1,6 @@
-// Standard coronary angiographic projections.
+// Standard angiographic projections: native coronaries, LV gram, bypass grafts.
 // lao: + = LAO, - = RAO (degrees). cran: + = cranial, - = caudal (degrees).
+// sys: the injection target (see TARGETS in anatomy.js).
 // Angles are typical starting points; every patient's heart sits a little
 // differently, so operators fine-tune them case by case.
 
@@ -94,7 +95,94 @@ export const VIEWS = [
       'RAO 30 is also the classic view for an LV gram (ventriculogram).',
     ],
   },
+
+  // ---- Ventriculography ----
+  {
+    id: 'lv-rao', name: 'LV gram RAO', lao: -30, cran: 0, sys: 'LV',
+    nickname: 'The classic ventriculogram',
+    bestFor: ['Anterior wall', 'Apex', 'Inferior wall', 'Mitral regurgitation'],
+    tips: [
+      'Lays the long axis of the LV across the screen: the anterior, apical and inferior segments are seen in profile.',
+      'Contrast appearing behind the mitral plane in the left atrium means mitral regurgitation.',
+      'Try the wall-motion options: anterior and inferior akinesis are obvious here, a lateral problem is not.',
+    ],
+  },
+  {
+    id: 'lv-lao', name: 'LV gram LAO', lao: 45, cran: 15, sys: 'LV',
+    nickname: 'Septum in profile',
+    bestFor: ['Septum', 'Lateral (posterolateral) wall', 'VSD'],
+    tips: [
+      'Looks down the septum, so the septal and lateral walls form the borders of the LV silhouette.',
+      'The view for a post-infarct VSD (contrast crosses into the RV) and for lateral wall motion.',
+      'RAO 30 + LAO 45 together cover all the walls; one view alone always misses some.',
+    ],
+  },
+
+  // ---- Bypass grafts ----
+  {
+    id: 'lima-ap', name: 'LIMA AP', lao: 0, cran: 0, sys: 'LIMA',
+    nickname: 'Subclavian & LIMA origin',
+    bestFor: ['Left subclavian', 'LIMA origin', 'Proximal LIMA'],
+    tips: [
+      'The LIMA comes off the underside of the left subclavian artery and runs down beside the sternum.',
+      'Surgical clips along the LIMA pedicle and the sternal wires are your landmarks in post-CABG patients.',
+    ],
+  },
+  {
+    id: 'lima-lateral', name: 'LIMA Lateral', lao: 90, cran: 0, sys: 'LIMA',
+    nickname: 'LIMA–LAD anastomosis',
+    bestFor: ['LIMA–LAD anastomosis', 'Distal LAD run-off'],
+    tips: [
+      'Lateral lays the anastomosis on the front of the heart, clear of the LIMA body.',
+      'Contrast entering the native LAD beyond the anastomosis confirms the graft is patent.',
+    ],
+  },
+  {
+    id: 'lima-ap-cranial', name: 'LIMA AP Cranial', lao: 0, cran: 25, sys: 'LIMA',
+    nickname: 'Anastomosis & run-off',
+    bestFor: ['LIMA–LAD anastomosis', 'Distal LAD'],
+    tips: [
+      'Second, orthogonal-ish look at the anastomosis; pair it with the lateral.',
+    ],
+  },
+  {
+    id: 'svgr-lao', name: 'SVG–RCA LAO', lao: 35, cran: 0, sys: 'SVGR',
+    nickname: 'Right graft: ostium & body',
+    bestFor: ['SVG ostium', 'Graft body'],
+    tips: [
+      'Vein graft ostia sit on the front of the ascending aorta, above the native coronaries. Right-sided grafts are usually the lowest and furthest right.',
+      'Ostial ring markers (if the surgeon placed them) show you where to engage.',
+    ],
+  },
+  {
+    id: 'svgr-rao', name: 'SVG–RCA RAO', lao: -30, cran: 0, sys: 'SVGR',
+    nickname: 'Right graft: anastomosis',
+    bestFor: ['Distal anastomosis', 'PDA / PLV run-off'],
+    tips: [
+      'Opens out the distal anastomosis and the native PDA and PLV it supplies.',
+    ],
+  },
+  {
+    id: 'svgo-rao-caudal', name: 'SVG–OM RAO Caudal', lao: -30, cran: -20, sys: 'SVGO',
+    nickname: 'Left graft: anastomosis',
+    bestFor: ['Distal anastomosis to OM', 'OM run-off'],
+    tips: [
+      'Same logic as the native circumflex: RAO caudal lays the lateral wall out.',
+      'Grafts to the circumflex territory usually arise highest and furthest left on the aorta.',
+    ],
+  },
+  {
+    id: 'svgo-lao', name: 'SVG–OM LAO', lao: 45, cran: 0, sys: 'SVGO',
+    nickname: 'Left graft: ostium & body',
+    bestFor: ['SVG ostium', 'Graft body'],
+    tips: [
+      'The graft loops over the pulmonary artery toward the lateral wall; LAO separates it from the aorta.',
+    ],
+  },
 ];
+
+export const GROUPS = { L: 'Left coronary', R: 'Right coronary', LV: 'Ventriculogram', G: 'Bypass grafts' };
+for (const v of VIEWS) v.group = ['LIMA', 'SVGR', 'SVGO'].includes(v.sys) ? 'G' : v.sys;
 
 export const VIEW_BY_ID = Object.fromEntries(VIEWS.map((v) => [v.id, v]));
 

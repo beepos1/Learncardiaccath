@@ -15,7 +15,7 @@
     <div class="wrap">
       <div class="kicker">Module 3</div>
       <h1>The standard views</h1>
-      <p class="lead">Ten workhorse projections. Pick one to swing the C-arm into position, then orbit the room to see why that angle opens up the segments it's known for.</p>
+      <p class="lead">The workhorse projections for the native coronaries, the LV gram and bypass grafts. Pick one to swing the C-arm into position, then orbit the room to see why that angle opens up the segments it's known for.</p>
     </div>
   </section>
   <section style="padding-top:0">
@@ -31,14 +31,15 @@
     <div class="wrap">
       <h2>Quick reference</h2>
       <div class="table-scroll">
-        <table class="ref" id="ref"><thead><tr><th>View</th><th>Typical angles</th><th>Artery</th><th>Best for</th></tr></thead><tbody></tbody></table>
+        <table class="ref" id="ref"><thead><tr><th>View</th><th>Typical angles</th><th>Injection</th><th>Best for</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
   </section>
 </main>
 <script type="module">
   import { createLab } from './js/lab.js';
-  import { VIEWS, VIEW_BY_ID, formatAngles } from './js/views-data.js';
+  import { VIEWS, VIEW_BY_ID, GROUPS, formatAngles } from './js/views-data.js';
+  import { TARGETS } from './js/anatomy.js';
   const list = document.getElementById('view-list');
   const detail = document.getElementById('detail');
   const start = VIEW_BY_ID[location.hash.slice(1)] || VIEWS[0];
@@ -49,21 +50,25 @@
     Object.values(buttons).forEach((b) => b.classList.remove('on'));
     buttons[v.id].classList.add('on');
     detail.innerHTML = `
-      <div class="kicker">${v.sys === 'L' ? 'Left coronary' : 'Right coronary'} · ${formatAngles(v.lao, v.cran)}</div>
+      <div class="kicker">${TARGETS[v.sys].name} · ${formatAngles(v.lao, v.cran)}</div>
       <h2>${v.name} <span class="muted" style="font-size:.6em;font-weight:500">${v.nickname}</span></h2>
       <h3>Best for</h3><p>${v.bestFor.map((b) => '<span class="pill">' + b + '</span>').join('')}</p>
       <h3>Pearls</h3><ul>${v.tips.map((t) => '<li>' + t + '</li>').join('')}</ul>
-      <p class="muted">Press <b>Inject</b> to watch contrast fill the vessel, or switch to <b>Anatomy</b> to colour-code the branches. <a href="simulator.html?view=${v.id}">Open in simulator →</a></p>`;
+      <p class="muted">Press <b>Inject</b> to watch the contrast run, or switch to <b>Anatomy</b> to colour-code the structures.${v.group === 'LV' ? ' Change the <b>wall motion</b> to see which views reveal which abnormality.' : v.group === 'L' || v.group === 'R' ? ' Turn on <b>Lesions</b> and see which views show them best.' : ''} <a href="simulator.html?view=${v.id}">Open in simulator →</a></p>`;
     if (push) history.replaceState(null, '', '#' + v.id);
   }
-  for (const v of VIEWS) {
-    const b = document.createElement('button');
-    b.innerHTML = `${v.name}<small>${formatAngles(v.lao, v.cran)} · ${v.sys === 'L' ? 'LCA' : 'RCA'}</small>`;
-    b.addEventListener('click', () => show(v));
-    buttons[v.id] = b; list.appendChild(b);
+  for (const [g, title] of Object.entries(GROUPS)) {
+    const h = document.createElement('div');
+    h.className = 'view-group'; h.textContent = title; list.appendChild(h);
+    for (const v of VIEWS.filter((x) => x.group === g)) {
+      const b = document.createElement('button');
+      b.innerHTML = `${v.name}<small>${formatAngles(v.lao, v.cran)} · ${TARGETS[v.sys].osd}</small>`;
+      b.addEventListener('click', () => show(v));
+      buttons[v.id] = b; list.appendChild(b);
+    }
   }
   document.querySelector('#ref tbody').innerHTML = VIEWS.map((v) =>
-    `<tr><td><a href="#${v.id}">${v.name}</a><br><span class="muted">${v.nickname}</span></td><td>${formatAngles(v.lao, v.cran)}</td><td>${v.sys === 'L' ? 'Left' : 'Right'}</td><td>${v.bestFor.join(', ')}</td></tr>`).join('');
+    `<tr><td><a href="#${v.id}">${v.name}</a><br><span class="muted">${v.nickname}</span></td><td>${formatAngles(v.lao, v.cran)}</td><td>${TARGETS[v.sys].name}</td><td>${v.bestFor.join(', ')}</td></tr>`).join('');
   addEventListener('hashchange', () => { const v = VIEW_BY_ID[location.hash.slice(1)]; if (v) { show(v, false); document.getElementById('lab').scrollIntoView({ behavior: 'smooth' }); } });
   show(start, false);
 </script>
