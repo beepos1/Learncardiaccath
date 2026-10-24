@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>C-arm Basics — Learn Cardiac Cath</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 22 A11 11 0 1 1 26 22' fill='none' stroke='%233aa0ff' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='27' r='3.5' fill='%23f0a040'/%3E%3C/svg%3E">
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/" } }</script>
+<script src="js/site.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="hero" style="padding-bottom:10px">
+    <div class="wrap">
+      <div class="kicker">Module 1</div>
+      <h1>C-arm basics</h1>
+      <p class="lead">Before you can read an angiogram you need a mental model of the machine: what moves, what the names mean, and how the 3D world maps onto the 2D monitor.</p>
+      <nav class="anchor-nav">
+        <a class="pill" href="#machine">1 · The machine</a>
+        <a class="pill" href="#naming">2 · Naming views</a>
+        <a class="pill" href="#cranial">3 · Cranial &amp; caudal</a>
+        <a class="pill" href="#monitor">4 · Reading the monitor</a>
+        <a class="pill" href="#why">5 · Why so many views?</a>
+        <a class="pill" href="#sequence">6 · A typical sequence</a>
+        <a class="pill" href="#radiation">7 · Radiation</a>
+      </nav>
+    </div>
+  </section>
+
+  <section id="machine">
+    <div class="wrap">
+      <h2>1 · The machine</h2>
+      <div>
+        <div style="max-width:52em">
+          <p>The C-arm is a C-shaped gantry with an <b>X-ray tube</b> on one end and a <b>flat-panel detector</b> on the other. In the standard frontal (AP) position the tube sits <b>under the table</b> and the detector hangs <b>over the patient's chest</b>.</p>
+          <p>The C moves in two ways, and both pivot around a fixed point called the <b>isocentre</b>. Put the heart at the isocentre and it stays centred whatever angle you choose.</p>
+          <ul>
+            <li><b>Rotation</b> (LAO ↔ RAO): the whole C spins around the patient's long axis, swinging the detector toward the patient's left or right.</li>
+            <li><b>Angulation</b> (cranial ↔ caudal): the C slides through its collar, tilting the detector toward the head or the feet.</li>
+          </ul>
+          <div class="callout blue">Try it: move one slider at a time and watch which part of the C-arm moves in the 3D room.</div>
+        </div>
+        <div id="lab-basics" style="margin-top:16px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="naming">
+    <div class="wrap two-col">
+      <div>
+        <h2>2 · Naming views: follow the detector</h2>
+        <p>A projection is named by where the <b>detector</b> is. Picture the patient lying on the table, seen from their feet (like a CT slice). Move the detector around:</p>
+        <table class="ref">
+          <tr><th>Detector position</th><th>Name</th></tr>
+          <tr><td>Straight above the chest</td><td><b>AP</b> (antero-posterior) — the name is convention; with the tube under the table the beam really travels back to front</td></tr>
+          <tr><td>Over the patient's left chest</td><td><b>LAO</b> — left anterior oblique</td></tr>
+          <tr><td>Over the patient's right chest</td><td><b>RAO</b> — right anterior oblique</td></tr>
+          <tr><td>Beside the patient's left side (90°)</td><td><b>Left lateral</b></td></tr>
+        </table>
+        <div class="callout">"Oblique" is named the same way as in a plain chest film: in an LAO view, the patient's left anterior chest is closest to the detector.</div>
+      </div>
+      <div class="diagram">
+        <svg viewBox="0 0 420 360" role="img" aria-label="Cross-section from the feet showing AP, LAO and RAO detector positions">
+          <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#93a4b8"/></marker></defs>
+          <text x="210" y="350" text-anchor="middle" fill="#93a4b8" font-size="13">Viewed from the patient's feet</text>
+          <rect x="70" y="245" width="280" height="12" rx="3" fill="#2c3540"/>
+          <ellipse cx="210" cy="205" rx="120" ry="40" fill="#1d2b3b" stroke="#3d4b5c"/>
+          <circle cx="210" cy="232" r="11" fill="#556270"/>
+          <text x="210" y="236" text-anchor="middle" fill="#cfd8e3" font-size="9">spine</text>
+          <ellipse cx="238" cy="194" rx="26" ry="18" fill="#b03a3a" opacity=".85" transform="rotate(-25 238 194)"/>
+          <text x="238" y="198" text-anchor="middle" fill="#fff" font-size="10">heart</text>
+          <text x="80" y="210" text-anchor="middle" fill="#cfd8e3" font-size="12">R</text>
+          <text x="340" y="210" text-anchor="middle" fill="#cfd8e3" font-size="12">L</text>
+          <text x="210" y="290" text-anchor="middle" fill="#f0a040" font-size="12">X-ray tube under the table (AP)</text>
+          <circle cx="210" cy="272" r="7" fill="#f0a040"/>
+          <g fill="#3aa0ff">
+            <rect x="175" y="62" width="70" height="14" rx="3"/>
+            <rect x="292" y="94" width="70" height="14" rx="3" transform="rotate(45 327 101)"/>
+            <rect x="74" y="80" width="70" height="14" rx="3" transform="rotate(-30 109 87)"/>
+          </g>
+          <text x="210" y="52" text-anchor="middle" fill="#fff" font-weight="700">AP</text>
+          <text x="360" y="78" text-anchor="middle" fill="#fff" font-weight="700">LAO 45°</text>
+          <text x="66" y="62" text-anchor="middle" fill="#fff" font-weight="700">RAO 30°</text>
+          <path d="M210 82 L210 160" stroke="#93a4b8" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+          <path d="M318 112 L268 165" stroke="#93a4b8" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+          <path d="M118 100 L170 160" stroke="#93a4b8" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section id="cranial">
+    <div class="wrap two-col">
+      <div>
+        <h2>3 · Cranial &amp; caudal</h2>
+        <p>Now look at the patient from their side. Tilting the detector toward the <b>head</b> is <b>cranial</b> (CRA); toward the <b>feet</b> is <b>caudal</b> (CAU). The X-ray tube, under the table, moves the opposite way.</p>
+        <p>Any view is a combination: <b>RAO 30 / CAU 25</b> means rotate the detector 30° to the patient's right, then tilt it 25° toward the feet.</p>
+        <div class="callout">Cranial views look <b>down</b> on the heart from above the diaphragm; caudal views look <b>up</b> at the base of the heart from below.</div>
+      </div>
+      <div class="diagram">
+        <svg viewBox="0 0 420 300" role="img" aria-label="Side view showing cranial and caudal detector tilt">
+          <rect x="40" y="200" width="340" height="12" rx="3" fill="#2c3540"/>
+          <rect x="70" y="168" width="250" height="32" rx="16" fill="#1d2b3b" stroke="#3d4b5c"/>
+          <circle cx="345" cy="184" r="20" fill="#1d2b3b" stroke="#3d4b5c"/>
+          <text x="345" y="188" text-anchor="middle" fill="#cfd8e3" font-size="11">head</text>
+          <text x="70" y="235" fill="#cfd8e3" font-size="11">feet</text>
+          <ellipse cx="240" cy="178" rx="20" ry="12" fill="#b03a3a"/>
+          <g fill="#3aa0ff">
+            <rect x="205" y="50" width="70" height="14" rx="3"/>
+            <rect x="285" y="70" width="70" height="14" rx="3" transform="rotate(30 320 77)"/>
+            <rect x="125" y="70" width="70" height="14" rx="3" transform="rotate(-30 160 77)"/>
+          </g>
+          <text x="240" y="40" text-anchor="middle" fill="#fff" font-weight="700">AP</text>
+          <text x="345" y="56" text-anchor="middle" fill="#fff" font-weight="700">Cranial</text>
+          <text x="135" y="56" text-anchor="middle" fill="#fff" font-weight="700">Caudal</text>
+          <circle cx="240" cy="250" r="7" fill="#f0a040"/>
+          <text x="240" y="275" text-anchor="middle" fill="#f0a040" font-size="12">tube (moves opposite)</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section id="monitor">
+    <div class="wrap">
+      <h2>4 · Reading the monitor</h2>
+      <p>The image is displayed as if you were standing at the detector looking at the patient. In AP, that means <b>the patient's left is on the right of the screen</b> (like a chest X-ray), and the head is at the top. Two landmarks tell you the view on almost any frame:</p>
+      <div class="cards">
+        <div class="card"><h3>Where is the spine?</h3><p><b>LAO</b> → spine on the <b>right</b> of the screen.<br><b>RAO</b> → spine on the <b>left</b> of the screen.<br><b>AP</b> → spine in the middle.</p></div>
+        <div class="card"><h3>Is the diaphragm in view?</h3><p><b>Cranial</b> → the dome of the diaphragm/liver rises into the lower field.<br><b>Caudal</b> → the diaphragm drops out; you see lung and the base of the heart.</p></div>
+        <div class="card"><h3>Follow the catheter</h3><p>The catheter comes up the descending aorta beside the spine, then over the arch: another way to find the spine when it's faint.</p></div>
+      </div>
+      <div class="callout blue">Prove it to yourself: in the <a href="simulator.html">simulator</a>, sweep from RAO 90 to LAO 90 and watch the spine travel across the screen.</div>
+    </div>
+  </section>
+
+  <section id="why">
+    <div class="wrap two-col">
+      <div>
+        <h2>5 · Why so many views?</h2>
+        <p>The heart sits obliquely in the chest: its long axis points <b>left, anterior and inferior</b>. The coronaries wrap around it in three dimensions, but an angiogram is a 2D shadow. Any single projection will:</p>
+        <ul>
+          <li><b>Foreshorten</b> vessel segments that run toward or away from the detector, hiding stenoses.</li>
+          <li><b>Overlap</b> branches so a lesion hides behind another vessel.</li>
+        </ul>
+        <p>So every segment must be seen in <b>at least two, ideally orthogonal, views</b>, each chosen to lay that segment flat across the detector with nothing on top of it.</p>
+      </div>
+      <div class="card">
+        <h3>Heart-based shorthand</h3>
+        <p><b>RAO</b> views lay the <b>AV groove</b> (RCA, LCx) and <b>interventricular groove</b> (LAD, PDA) side by side, seen from the right.</p>
+        <p style="margin-top:10px"><b>LAO</b> views look down the <b>septum</b>: the LAD runs straight down the middle, the LCx and RCA wrap around the sides.</p>
+        <p style="margin-top:10px"><b>Cranial</b> opens the LAD and its branches; <b>caudal</b> opens the left main, LCx and bifurcation.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="sequence">
+    <div class="wrap two-col">
+      <div>
+        <h2>6 · A typical sequence</h2>
+        <p>Labs differ, but most operators run something like this, adding views to clear any doubtful segment:</p>
+        <h3>Left coronary</h3>
+        <ol class="step-list">
+          <li><b>RAO caudal</b> — LM, LCx, OMs.</li>
+          <li><b>AP cranial</b> or <b>RAO cranial</b> — mid/distal LAD, diagonals.</li>
+          <li><b>LAO cranial</b> — LAD and diagonal bifurcations.</li>
+          <li><b>LAO caudal</b> ("spider") — LM bifurcation, proximal LCx.</li>
+        </ol>
+        <h3>Right coronary</h3>
+        <ol class="step-list">
+          <li><b>LAO</b> — the "C": ostium, proximal and mid RCA.</li>
+          <li><b>RAO</b> or <b>AP cranial</b> — mid RCA, PDA and PLV.</li>
+        </ol>
+        <a class="btn" href="views.html">Explore each view in 3D →</a>
+      </div>
+      <div id="radiation">
+        <h2>7 · Radiation: geometry matters</h2>
+        <ul>
+          <li>Scatter is greatest on the <b>tube side</b> of the patient. The operator stands on the patient's right, so <b>LAO</b> angles (tube swings to the right) increase operator dose.</li>
+          <li>Steep angles mean a longer path through the patient: more dose and a noisier picture. Steep <b>LAO cranial/caudal</b> views are the highest-dose shots.</li>
+          <li>Keep the <b>detector close</b> to the patient and the <b>tube far</b> away; collimate; use shields; step back during cine runs.</li>
+        </ul>
+        <div class="callout">Every degree should earn its dose. Choose angles that answer a question, not a checklist.</div>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module">
+  import { createLab } from './js/lab.js';
+  createLab(document.getElementById('lab-basics'), { lao: 0, cran: 0, presets: false, compact: true });
+</script>
+</body>
+</html>

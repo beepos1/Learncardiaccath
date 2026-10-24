@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Standard Views — Learn Cardiac Cath</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 22 A11 11 0 1 1 26 22' fill='none' stroke='%233aa0ff' stroke-width='3.5' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='27' r='3.5' fill='%23f0a040'/%3E%3C/svg%3E">
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/" } }</script>
+<script src="js/site.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="hero" style="padding-bottom:18px">
+    <div class="wrap">
+      <div class="kicker">Module 3</div>
+      <h1>The standard views</h1>
+      <p class="lead">Ten workhorse projections. Pick one to swing the C-arm into position, then orbit the room to see why that angle opens up the segments it's known for.</p>
+    </div>
+  </section>
+  <section style="padding-top:0">
+    <div class="wrap views-layout">
+      <div class="view-list" id="view-list"></div>
+      <div>
+        <div id="lab"></div>
+        <div class="view-detail" id="detail"></div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <div class="wrap">
+      <h2>Quick reference</h2>
+      <div class="table-scroll">
+        <table class="ref" id="ref"><thead><tr><th>View</th><th>Typical angles</th><th>Artery</th><th>Best for</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module">
+  import { createLab } from './js/lab.js';
+  import { VIEWS, VIEW_BY_ID, formatAngles } from './js/views-data.js';
+  const list = document.getElementById('view-list');
+  const detail = document.getElementById('detail');
+  const start = VIEW_BY_ID[location.hash.slice(1)] || VIEWS[0];
+  const lab = createLab(document.getElementById('lab'), { lao: start.lao, cran: start.cran, sys: start.sys, presets: false, compact: true });
+  const buttons = {};
+  function show(v, push = true) {
+    lab.setSystem(v.sys); lab.setAngles(v.lao, v.cran, true);
+    Object.values(buttons).forEach((b) => b.classList.remove('on'));
+    buttons[v.id].classList.add('on');
+    detail.innerHTML = `
+      <div class="kicker">${v.sys === 'L' ? 'Left coronary' : 'Right coronary'} · ${formatAngles(v.lao, v.cran)}</div>
+      <h2>${v.name} <span class="muted" style="font-size:.6em;font-weight:500">${v.nickname}</span></h2>
+      <h3>Best for</h3><p>${v.bestFor.map((b) => '<span class="pill">' + b + '</span>').join('')}</p>
+      <h3>Pearls</h3><ul>${v.tips.map((t) => '<li>' + t + '</li>').join('')}</ul>
+      <p class="muted">Press <b>Inject</b> to watch contrast fill the vessel, or switch to <b>Anatomy</b> to colour-code the branches. <a href="simulator.html?view=${v.id}">Open in simulator →</a></p>`;
+    if (push) history.replaceState(null, '', '#' + v.id);
+  }
+  for (const v of VIEWS) {
+    const b = document.createElement('button');
+    b.innerHTML = `${v.name}<small>${formatAngles(v.lao, v.cran)} · ${v.sys === 'L' ? 'LCA' : 'RCA'}</small>`;
+    b.addEventListener('click', () => show(v));
+    buttons[v.id] = b; list.appendChild(b);
+  }
+  document.querySelector('#ref tbody').innerHTML = VIEWS.map((v) =>
+    `<tr><td><a href="#${v.id}">${v.name}</a><br><span class="muted">${v.nickname}</span></td><td>${formatAngles(v.lao, v.cran)}</td><td>${v.sys === 'L' ? 'Left' : 'Right'}</td><td>${v.bestFor.join(', ')}</td></tr>`).join('');
+  addEventListener('hashchange', () => { const v = VIEW_BY_ID[location.hash.slice(1)]; if (v) { show(v, false); document.getElementById('lab').scrollIntoView({ behavior: 'smooth' }); } });
+  show(start, false);
+</script>
+</body>
+</html>
